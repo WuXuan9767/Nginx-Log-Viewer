@@ -1,0 +1,79 @@
+@startuml test
+!theme plain
+
+actor User as user
+participant Main
+participant NginxLogViewer
+participant SwingWorker
+participant LogParser
+participant NginxLogEntry
+participant LogTableModel
+participant FileMonitorThread
+
+user -> Main: 启动程序
+activate Main
+Main -> NginxLogViewer: new()
+activate NginxLogViewer
+NginxLogViewer -> NginxLogViewer: initUI()
+Main --> user: 显示GUI
+deactivate Main
+
+user -> NginxLogViewer: 点击"打开日志"
+activate NginxLogViewer
+NginxLogViewer -> NginxLogViewer: openLogFile()
+NginxLogViewer -> user: 显示文件选择对话框
+user -> NginxLogViewer: 选择日志文件
+NginxLogViewer -> NginxLogViewer: loadLogFile(file)
+activate NginxLogViewer
+NginxLogViewer -> SwingWorker: execute()
+activate SwingWorker
+
+group 后台加载日志
+SwingWorker -> NginxLogViewer: 逐行读取文件
+loop 每行日志
+SwingWorker -> LogParser: parseLine(line)
+activate LogParser
+LogParser -> NginxLogEntry: new()
+activate NginxLogEntry
+LogParser <-- NginxLogEntry
+deactivate LogParser
+SwingWorker -> NginxLogViewer: 添加条目到logEntries
+end
+SwingWorker --> NginxLogViewer: 加载完成
+deactivate SwingWorker
+end
+
+NginxLogViewer -> LogTableModel: setData(logEntries)
+activate LogTableModel
+LogTableModel --> NginxLogViewer
+deactivate LogTableModel
+
+NginxLogViewer -> FileMonitorThread: startMonitoring()
+activate FileMonitorThread
+FileMonitorThread -> FileMonitorThread: 检查文件变化
+loop 每2秒检查
+FileMonitorThread -> NginxLogViewer: readNewLines()
+activate NginxLogViewer
+NginxLogViewer -> LogParser: parseLine(newLine)
+LogParser -> NginxLogEntry: new()
+NginxLogViewer -> LogTableModel: setData(updatedList)
+deactivate NginxLogViewer
+end
+deactivate FileMonitorThread
+
+user -> NginxLogViewer: 输入过滤条件
+activate NginxLogViewer
+user -> NginxLogViewer: 点击"过滤"
+NginxLogViewer -> NginxLogViewer: filterTable()
+NginxLogViewer -> LogTableModel: setData(filteredList)
+LogTableModel --> NginxLogViewer
+deactivate NginxLogViewer
+
+user -> NginxLogViewer: 点击"重置"
+activate NginxLogViewer
+NginxLogViewer -> NginxLogViewer: reloadLog()
+NginxLogViewer -> LogTableModel: setData(originalList)
+LogTableModel --> NginxLogViewer
+deactivate NginxLogViewer
+
+@enduml

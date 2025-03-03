@@ -1,0 +1,79 @@
+@startuml ttt
+!theme plain
+
+' 外部类定义
+class JFrame
+class AbstractTableModel
+
+' 实体类
+class Main {
+  +main(String[] args)
+}
+
+class LogParser {
+  -LOG_PATTERN: Pattern
+  +parseLine(String line): NginxLogEntry
+}
+
+class NginxLogEntry {
+    - ip: String
+    - time: String
+    - method: String
+    - path: String
+    - statusCode: int
+    - bodyBytesSent: long
+    - referer: String
+    - userAgent: String
+
+    + NginxLogEntry()
+    + getIp(): String
+    + getTime(): String
+    + getMethod(): String
+    + getPath(): String
+    + getStatusCode(): int
+    + getBodyBytesSent(): long
+    + getReferer(): String
+    + getUserAgent(): String
+}
+
+class NginxLogViewer {
+  -logTable: JTable
+  -tableModel: LogTableModel
+  -logEntries: List<NginxLogEntry>
+  -filterIpField: JTextField
+  -filterStatusField: JTextField
+  -filterPathField: JTextField
+  -monitoring: boolean
+  -monitorThread: Thread
+  +initUI()
+  +openLogFile()
+  +loadLogFile(File)
+  +startMonitoring()
+  +stopMonitoring()
+  +filterTable()
+  +reloadLog()
+}
+
+class LogTableModel {
+  -data: List<NginxLogEntry>
+  +setData(List<NginxLogEntry>)
+  +getRowCount(): int
+  +getColumnCount(): int
+  +getValueAt(int, int): Object
+  +getColumnName(int): String
+}
+
+' 继承关系
+NginxLogViewer --|> JFrame
+LogTableModel --|> AbstractTableModel
+
+' 依赖关系
+Main ..> NginxLogViewer : creates
+LogParser ..> NginxLogEntry : creates
+NginxLogViewer ..> LogParser : uses
+LogTableModel ..> NginxLogEntry : uses
+
+' 组合关系
+NginxLogViewer *-- LogTableModel
+NginxLogViewer o-- "0..*" NginxLogEntry
+@enduml
