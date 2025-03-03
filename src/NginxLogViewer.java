@@ -1,7 +1,6 @@
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
-import java.nio.file.*;
 import java.util.*;
 import java.util.List;
 
@@ -14,9 +13,6 @@ public class NginxLogViewer extends JFrame {
     private JTextField filterStatusField;   // 状态码过滤输入框
     private JTextField filterPathField;   // 状态码过滤输入框
     private List<NginxLogEntry> logEntries = new ArrayList<>(); // 存储所有日志条目
-    // 文件监控相关
-    private volatile boolean monitoring = false; // 监控开关标志
-    private Thread monitorThread;            // 文件监控线程
     private File logfilePath;
 
     // 构造函数
@@ -70,6 +66,15 @@ public class NginxLogViewer extends JFrame {
 
     }
 
+    private void autoOpenLogFile() {
+        File defaultLog = getDefaultLogFile();
+        if (defaultLog != null && defaultLog.exists()) {
+            logfilePath = defaultLog;
+            loadLogFile(logfilePath);
+        } else {
+            openLogFile(); // 回退到手动选择
+        }
+    }
     // 打开日志文件对话框
     private void openLogFile() {
         JFileChooser fileChooser = new JFileChooser();
@@ -117,79 +122,11 @@ public class NginxLogViewer extends JFrame {
             @Override
             protected void done() {
                 tableModel.setData(logEntries); // 更新表格数据
-                startMonitoring(); // 在加载完成后启动监控
             }
         };
         worker.execute();
     }
 
-    // 启动文件监控线程
-    private void startMonitoring() {
-        stopMonitoring(); // 确保之前的监控已停止
-        monitoring = true;
-        monitorThread = new Thread(() -> {
-            long lastSize = 0;
-            try {
-                while (monitoring) {
-                    long currentSize = Files.size(logfilePath.toPath());
-                    if (currentSize > lastSize) {
-                        readNewLines(logfilePath.toPath(), lastSize); // 读取新增内容
-                        lastSize = currentSize;
-                    }
-                    try {
-                        Thread.sleep(2000);
-                    } catch (InterruptedException e) {
-                        // 睡眠被中断，退出循环
-                        break;
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-        monitorThread.start();
-    }
-
-    // 读取文件新增内容
-    private void readNewLines(Path path, long lastSize) throws IOException {
-        try (RandomAccessFile raf = new RandomAccessFile(path.toFile(), "r")) {
-            raf.seek(lastSize); // 跳转到上次读取位置
-            String line;
-            while ((line = raf.readLine()) != null) {
-                NginxLogEntry entry = LogParser.parseLine(line);
-                if (entry != null) {
-                    logEntries.add(entry); // 添加新条目
-                }
-            }
-            SwingUtilities.invokeLater(() -> tableModel.setData(logEntries)); // 更新表格
-        }
-    }
-
-    // 停止文件监控
-    private void stopMonitoring() {
-        monitoring = false; // 先更新状态标志
-        if (monitorThread != null) {
-            monitorThread.interrupt(); // 再中断线程
-            monitorThread = null;
-        }
-    }
-
-    // 根据过滤条件更新表格数据
-    private void filterTable() {
-
-        String ipFilter = filterIpField.getText().trim().toLowerCase();
-        String statusFilter = filterStatusField.getText().trim();
-        String pathFilter = filterPathField.getText().trim();
-        
-        List<NginxLogEntry> filtered = logEntries.stream()
-                .filter(entry -> ipFilter.isEmpty() || entry.getIp().toLowerCase().contains(ipFilter))
-                .filter(entry -> statusFilter.isEmpty() || String.valueOf(entry.getStatusCode()).contains(statusFilter))
-                .filter(entry -> pathFilter.isEmpty() || String.valueOf(entry.getPath()).contains(pathFilter))
-                .toList();
-        
-        tableModel.setData(filtered); // 更新表格显示过滤后的数据
-
-    }
     private File getDefaultLogFile() {
         // 尝试多个常见路径
         File[] possiblePaths = {
@@ -207,20 +144,24 @@ public class NginxLogViewer extends JFrame {
         return null; // 没有找到默认文件
     }
 
-
-    private void autoOpenLogFile() {
-        File defaultLog = getDefaultLogFile();
-        if (defaultLog != null && defaultLog.exists()) {
-            logfilePath = defaultLog;
-            loadLogFile(logfilePath);
-        } else {
-            openLogFile(); // 回退到手动选择
-        }
-    }
-
     private void reloadLog(){
         loadLogFile(logfilePath);   
     }
 
-   
+       // 根据过滤条件更新表格数据
+       private void filterTable() {
+
+        String ipFilter = filterIpField.getText().trim().toLowerCase();
+        String statusFilter = filterStatusField.getText().trim();
+        String pathFilter = filterPathField.getText().trim();
+        
+        List<NginxLogEntry> filtered = logEntries.stream()
+                .filter(entry -> ipFilter.isEmpty() || entry.getIp().toLowerCase().contains(ipFilter))
+                .filter(entry -> statusFilter.isEmpty() || String.valueOf(entry.getStatusCode()).contains(statusFilter))
+                .filter(entry -> pathFilter.isEmpty() || String.valueOf(entry.getPath()).contains(pathFilter))
+                .toList();
+        
+        tableModel.setData(filtered); // 更新表格显示过滤后的数据
+
+    }
 }
