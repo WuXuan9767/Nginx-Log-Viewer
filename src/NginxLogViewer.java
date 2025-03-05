@@ -9,9 +9,10 @@ public class NginxLogViewer extends JFrame {
     // 界面组件
     private JTable logTable;                // 显示日志的表格
     private LogTableModel tableModel;       // 表格数据模型
-    private JTextField filterIpField;       // IP过滤输入框
-    private JTextField filterStatusField;   // 状态码过滤输入框
-    private JTextField filterPathField;   // 状态码过滤输入框
+    private JComboBox<String> filterTypeCombo1; // 第一个过滤类型下拉框
+    private JTextField filterValueField1;       // 第一个过滤值输入框
+    private JComboBox<String> filterTypeCombo2; // 第二个过滤类型下拉框
+    private JTextField filterValueField2;       // 第二个过滤值输入框
     private List<NginxLogEntry> logEntries = new ArrayList<>(); // 存储所有日志条目
     private File logfilePath;
 
@@ -38,26 +39,32 @@ public class NginxLogViewer extends JFrame {
         setJMenuBar(menuBar);
 
         // 初始化工具栏和过滤组件
+        // 修改后的工具栏
         JToolBar toolBar = new JToolBar();
-        filterIpField = new JTextField(15);
-        filterIpField.setToolTipText("按IP过滤");
-        filterStatusField = new JTextField(5);
-        filterStatusField.setToolTipText("按状态码过滤");
-        filterPathField = new JTextField(5);
-        filterPathField.setToolTipText("按路径过滤");
+        String[] filterOptions = {"IP", "路径", "状态码", "method", "userAgent"};
+        
+        // 第一个过滤条件组
+        filterTypeCombo1 = new JComboBox<>(filterOptions);
+        filterValueField1 = new JTextField(15);
+        toolBar.add(new JLabel("过滤条件1:"));
+        toolBar.add(filterTypeCombo1);
+        toolBar.add(filterValueField1);
+
+        // 第二个过滤条件组
+        filterTypeCombo2 = new JComboBox<>(filterOptions);
+        filterValueField2 = new JTextField(15);
+        toolBar.add(new JLabel("过滤条件2:"));
+        toolBar.add(filterTypeCombo2);
+        toolBar.add(filterValueField2);
+
         JButton filterBtn = new JButton("过滤");
-        filterBtn.addActionListener(e -> filterTable()); // 绑定过滤操作
+        filterBtn.addActionListener(e -> filterTable());
         JButton reloadBtn = new JButton("重置");
-        reloadBtn.addActionListener(e -> reloadLog()); //绑定重置操作
-        toolBar.add(new JLabel("IP:"));
-        toolBar.add(filterIpField);
-        toolBar.add(new JLabel("路径:"));
-        toolBar.add(filterPathField);
-        toolBar.add(new JLabel("状态码:"));
-        toolBar.add(filterStatusField);
+        reloadBtn.addActionListener(e -> reloadLog());
+        
         toolBar.add(filterBtn);
         toolBar.add(reloadBtn);
-        add(toolBar, BorderLayout.NORTH); // 将工具栏放在窗口顶部
+        add(toolBar, BorderLayout.NORTH);
 
         // 初始化日志表格
         tableModel = new LogTableModel();
@@ -144,24 +151,40 @@ public class NginxLogViewer extends JFrame {
         return null; // 没有找到默认文件
     }
 
+    // 通用过滤判断方法
+    private boolean applyFilter(NginxLogEntry entry, String filterType, String filterValue) {
+        if (filterValue.isEmpty()) return true;
+        
+        return switch (filterType) {
+            case "IP" -> entry.getIp().toLowerCase().contains(filterValue);
+            case "路径" -> entry.getPath().toLowerCase().contains(filterValue);
+            case "状态码" -> String.valueOf(entry.getStatusCode()).contains(filterValue);
+            case "method" -> entry.getMethod().toLowerCase().contains(filterValue);
+            case "userAgent" -> entry.getUserAgent().toLowerCase().contains(filterValue);
+            default -> true;
+        };
+    }
+
+
     private void reloadLog(){
         loadLogFile(logfilePath);   
     }
 
        // 根据过滤条件更新表格数据
        private void filterTable() {
-
-        String ipFilter = filterIpField.getText().trim().toLowerCase();
-        String statusFilter = filterStatusField.getText().trim();
-        String pathFilter = filterPathField.getText().trim();
+        // 获取第一个过滤条件
+        String type1 = (String) filterTypeCombo1.getSelectedItem();
+        String value1 = filterValueField1.getText().trim().toLowerCase();
         
+        // 获取第二个过滤条件
+        String type2 = (String) filterTypeCombo2.getSelectedItem();
+        String value2 = filterValueField2.getText().trim().toLowerCase();
+
         List<NginxLogEntry> filtered = logEntries.stream()
-                .filter(entry -> ipFilter.isEmpty() || entry.getIp().toLowerCase().contains(ipFilter))
-                .filter(entry -> statusFilter.isEmpty() || String.valueOf(entry.getStatusCode()).contains(statusFilter))
-                .filter(entry -> pathFilter.isEmpty() || String.valueOf(entry.getPath()).contains(pathFilter))
-                .toList();
-        
-        tableModel.setData(filtered); // 更新表格显示过滤后的数据
+            .filter(entry -> applyFilter(entry, type1, value1))
+            .filter(entry -> applyFilter(entry, type2, value2))
+            .toList();
 
+        tableModel.setData(filtered);
     }
 }
